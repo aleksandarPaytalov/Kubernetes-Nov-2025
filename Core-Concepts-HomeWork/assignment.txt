@@ -1,1 +1,13 @@
-test
+1.	Execute a series of commands to
+  a.	Create a namespace named homework
+  b.	Create a homework-1 pod in that namespace that uses this (shekeriev/k8s-oracle) image and set two labels on it (all at once) – app=hw and tier=gold
+  c.	Remove the tier=gold label with a separate command
+  d.	Create a homework-2 pod in that namespace that uses this (shekeriev/k8s-oracle) image
+  e.	Add a label to the second pod app=hw with a separate command
+  f.	Set annotation on both pods with the following content purpose=homework
+  g.	Create a homerwork-svc service to expose both pods on port 32000 of every node in the cluster
+2.	Create manifests for every object (the namespace, the two pods, and the service) from task 1 and apply them one by one
+3.	Is there a way to submit those manifests at once? Find and demonstrate two ways of doing it
+4.	Optional: Try to translate the attached docker-compose.yml file to a set of Kubernetes objects and the corresponding manifest(s)
+5.	Optional: Give the KIND tool a try and spin up a Kubernetes cluster in a Docker instance. Once done, start the pod (task 1.b) and the service (task 1.g) either imperatively or with manifests (for example, the ones from task 2)
+* There are five tasks. You are free to solve any number of them. Please keep in mind, that before continuing with the next task in the line, you should remove all objects from the previous one
