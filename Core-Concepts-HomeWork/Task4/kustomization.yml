@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - task4-01-namespace.yml
+  - task4-02-listener-pod.yml
+  - task4-03-listener-service.yml
+  - task4-04-speaker-pod.yml
+  - task4-05-speaker-service.yml
