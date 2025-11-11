@@ -1,0 +1,5 @@
+- kind create cluster
+- kubectl apply -f namespace-homework.yml
+- kubectl apply -f pod-homework-1.yml
+- kubectl apply -f service-homework.yml
+- kubectl port-forward -n homework service/homework-svc 32000:5000
