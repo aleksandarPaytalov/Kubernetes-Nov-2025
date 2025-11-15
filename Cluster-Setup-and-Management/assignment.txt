@@ -1,0 +1,12 @@
+Main goal is to build further on what was demonstrated during the practice
+For the successful completion of the tasks, you will need a simple (single node) cluster as the one used during the practice
+Tasks *
+1. Create a two node Minikube-based Kubernetes cluster and deploy a simple app on it. For example, shekeriev/k8s-oracle from the previous HW
+2. Create a three node KIND-based Kubernetes cluster and deploy a simple app on it. For example, shekeriev/k8s-oracle from the previous HW 
+3. Create a three-node vanilla Kubernetes cluster in a virtualization solution of your choice. You are free to use Debian (as demonstrated during the practice) or any other (from the same or another family) Linux distribution. Use Vagrant or a similar tool to do it in as much automated fashion as possible (If you are new to Vagrant, don’t worry. Do the other two tasks and wait until the solution is published)
+* There are three tasks. All of them are optional. You are free to solve any number of them. Please keep in mind that before continuing with the next task in the line, you may need to clean up a bit
+Proof
+Prepare a document that shows what you accomplished and how you did it. It can include (not limited to):
+1. The commands you used to achieve the above tasks
+2. A few pictures showing intermediary steps or results
+3. Any configuration files and/or manifests
