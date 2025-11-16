@@ -1,0 +1,164 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Kubernetes 3-Node Cluster on Hyper-V with Debian
+# 1 Master Node + 2 Worker Nodes
+
+ENV['VAGRANT_DEFAULT_PROVIDER'] = 'hyperv'
+
+# Cluster configuration
+MASTER_IP = "192.168.0.10"
+WORKER_IP_BASE = "192.168.0.1"
+POD_NETWORK_CIDR = "10.244.0.0/16"
+
+# VM configuration
+VM_CPUS = 2
+VM_MEMORY = 2048
+DEBIAN_BOX = "generic/debian12"
+
+# Node definitions
+NODES = [
+  { name: "k8s-master",  ip: MASTER_IP,              role: "master" },
+  { name: "k8s-worker1", ip: "#{WORKER_IP_BASE}1",   role: "worker" },
+  { name: "k8s-worker2", ip: "#{WORKER_IP_BASE}2",   role: "worker" }
+]
+
+Vagrant.configure("2") do |config|
+  
+  # Global configuration for all VMs
+  config.vm.box = DEBIAN_BOX
+  config.vm.box_check_update = false
+  
+  # Disable default synced folder (avoids SMB authentication issues)
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+  
+  # Hyper-V provider global settings
+  config.vm.provider "hyperv" do |hv|
+    hv.linked_clone = true
+    hv.enable_virtualization_extensions = false
+    hv.vm_integration_services = {
+      guest_service_interface: true,
+      heartbeat: true,
+      key_value_pair_exchange: true,
+      shutdown: true,
+      time_synchronization: true,
+      vss: true
+    }
+  end
+
+  # Iterate through each node
+  NODES.each do |node|
+    config.vm.define node[:name] do |node_config|
+      
+      # Basic VM settings
+      node_config.vm.hostname = node[:name]
+      
+      # Hyper-V specific settings
+      node_config.vm.provider "hyperv" do |hv|
+        hv.vmname = node[:name]
+        hv.cpus = VM_CPUS
+        hv.memory = VM_MEMORY
+        hv.maxmemory = VM_MEMORY
+        hv.enable_virtualization_extensions = false
+      end
+
+      # Network configuration - using External vSwitch
+      node_config.vm.network "public_network", 
+        bridge: "External-vSwitch",
+        auto_config: false
+
+      # Configure static IP via shell provisioning
+      node_config.vm.provision "shell", privileged: true, inline: <<-SHELL
+        echo "Configuring static IP: #{node[:ip]}"
+        
+        # Identify the network interface (usually eth0 or eth1)
+        INTERFACE=$(ip -o link show | awk -F': ' '$2 !~ /^(lo|docker|veth)/ {print $2; exit}')
+        
+        # Create netplan configuration
+        cat > /etc/network/interfaces.d/50-vagrant <<EOF
+auto $INTERFACE
+iface $INTERFACE inet static
+    address #{node[:ip]}
+    netmask 255.255.255.0
+    gateway 192.168.0.1
+    dns-nameservers 8.8.8.8 8.8.4.4
+EOF
+        
+        # Alternative: Using ifconfig for immediate configuration
+        ifconfig $INTERFACE #{node[:ip]} netmask 255.255.255.0 up
+        
+        # Add default route if not exists
+        ip route add default via 192.168.0.1 dev $INTERFACE 2>/dev/null || true
+        
+        # Restart networking
+        systemctl restart networking || ifdown $INTERFACE && ifup $INTERFACE
+        
+        echo "IP configuration completed"
+        ip addr show $INTERFACE
+      SHELL
+
+      # Run common setup on all nodes
+      node_config.vm.provision "shell", 
+        path: "scripts/common.sh",
+        privileged: true
+
+      # Run role-specific setup
+      if node[:role] == "master"
+        node_config.vm.provision "shell", 
+          path: "scripts/master.sh",
+          privileged: true
+      else
+        node_config.vm.provision "shell", 
+          path: "scripts/worker.sh",
+          privileged: true
+      end
+
+      # Display information after provisioning
+      node_config.vm.provision "shell", privileged: false, inline: <<-SHELL
+        echo ""
+        echo "=========================================="
+        echo "Node: #{node[:name]}"
+        echo "Role: #{node[:role]}"
+        echo "IP: #{node[:ip]}"
+        echo "=========================================="
+        echo ""
+      SHELL
+
+    end
+  end
+
+  # Post-provisioning message
+  config.vm.post_up_message = <<-MESSAGE
+  
+  ==========================================
+  Kubernetes Cluster Setup Complete!
+  ==========================================
+  
+  Cluster Configuration:
+    - Master Node:  k8s-master  (192.168.0.10)
+    - Worker Node:  k8s-worker1 (192.168.0.11)
+    - Worker Node:  k8s-worker2 (192.168.0.12)
+  
+  Network:
+    - Pod Network CIDR: 10.244.0.0/16
+    - CNI Plugin: Flannel
+  
+  Access the cluster:
+    vagrant ssh k8s-master
+    kubectl get nodes
+    kubectl get pods -A
+  
+  Useful commands:
+    - Check cluster status:  kubectl cluster-info
+    - View all nodes:        kubectl get nodes -o wide
+    - View all pods:         kubectl get pods -A
+  
+  Manage VMs:
+    - Suspend:  vagrant suspend
+    - Resume:   vagrant resume
+    - Destroy:  vagrant destroy -f
+  
+  ==========================================
+  MESSAGE
+
+end
