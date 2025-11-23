@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: producer-deploy
+  namespace: projectx # Added the namespace
+spec:
+  replicas: 2 # Changed from 3 to fit quota
+  selector:
+    matchLabels:
+      app: fun-facts
+      role: producer
+  minReadySeconds: 15
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: fun-facts
+        role: producer
+    spec: # added a requests and limits for the quota
+      containers:
+        - name: prod-container
+          image: shekeriev/k8s-producer:latest
+          ports:
+            - containerPort: 5000
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"

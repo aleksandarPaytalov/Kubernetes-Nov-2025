@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: consumer-netpol
+  namespace: projectx
+spec:
+  podSelector:
+    matchLabels:
+      app: fun-facts
+      role: consumer
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: curl-client
+      ports:
+        - protocol: TCP
+          port: 5000

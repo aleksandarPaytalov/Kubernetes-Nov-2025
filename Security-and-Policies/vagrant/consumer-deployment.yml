@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumer-deploy
+  namespace: projectx # Added the namespace
+spec:
+  replicas: 2 # Changed from 3 to fit quota
+  selector:
+    matchLabels:
+      app: fun-facts
+      role: consumer
+  minReadySeconds: 15
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: fun-facts
+        role: consumer
+    spec: # added a requests and limits for the quota
+      containers:
+        - name: cons-container
+          image: shekeriev/k8s-consumer:latest
+          ports:
+            - containerPort: 5000
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
