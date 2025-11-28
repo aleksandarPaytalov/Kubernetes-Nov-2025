@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hw-pod
+spec:
+  containers:
+    - name: environ
+      image: shekeriev/k8s-environ
+      env:
+        # i.
+        - name: HW_k8sver
+          valueFrom:
+            configMapKeyRef:
+              name: hwcm
+              key: k8sver
+        - name: HW_k8sos
+          valueFrom:
+            configMapKeyRef:
+              name: hwcm
+              key: k8sos
+        # iii.
+        - name: HW_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: hwcm
+              key: port.conf
+      volumeMounts:
+        # ii.
+        - name: config-volume
+          mountPath: /config
+        # iv.
+        - name: secret-volume
+          mountPath: /secret
+  volumes:
+    # ii.
+    - name: config-volume
+      configMap:
+        name: hwcm
+        items:
+          - key: main.conf
+            path: main.conf
+    # iv.
+    - name: secret-volume
+      secret:
+        secretName: hwsec
