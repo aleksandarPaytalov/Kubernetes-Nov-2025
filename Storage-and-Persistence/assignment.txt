@@ -1,0 +1,43 @@
+Homework M4: Storage and Persistence
+Main goal is to build further on what was demonstrated during the practice
+For the successful completion of the tasks, you will need a simple (two or three node) cluster like the one used during the practice 
+Tasks *
+Try to solve the following set of tasks:
+1.	Configuration maps and secrets
+a.	Create a ConfigMap resource hwcm that:
+i.	has two key-value pairs (k8sver and k8sos) initialized as literals that hold your Kubernetes version and the name of the OS where Kubernetes is running
+ii.	has two more key-value pairs (main.conf and port.conf) initialized from files. The first one (main.conf) should contain:
+# main.conf
+name=homework
+path=/tmp
+certs=/secret
+And the second one (port.conf):
+8080
+b.	Create a Secret resource hwsec that:
+i.	Has two data entries – main.key and main.crt created from files
+ii.	The content for the above two generate by using the openssl utility. For example:
+openssl genrsa -out main.key 4096
+openssl req -new -x509 -key main.key -out main.crt -days 365 -subj /CN=www.hw.lab
+c.	Mount the above resources to a pod created from the shekeriev/k8s-environ image (used during the practice) by 
+i.	k8sver and k8sos should be mounted as environment variables with prefix HW_
+ii.	main.conf should be mounted as a volume to the /config folder inside the container
+iii.	port.conf should be mounted as an environment variable HW_PORT
+iv.	main.key and main.crt should be mounted as a volume to the /secret folder inside the container
+2.	Create and run a set of manifest files to spin the following application:
+ 
+Please note that:
+-	Service FE should be of type NodePort
+-	Pod FE should use shekeriev/k8s-facts-fe image and should be initialized with two environment variables – FACTS_SERVER equal to the name of the Service BE and FACTS_PORT equal to the port of Service BE
+-	Pod FE listens on port 5000/tcp
+-	Service BE should be of type ClusterIP (please note that this is not the headless service but the "public" one)
+-	Pod BE should use shekeriev/k8s-facts image and expects a volume to be mounted at /data folder
+-	Pod BE listens on port 5000/tcp
+-	For the PVs and PVCs use NFS and storage capacity of 2Gi
+-	Both the Deployment and the StatefulSet should spin three replicas
+As usual, you are not obliged to complete all the tasks but try to tackle as many as possible
+Proof
+Prepare a document that shows what you accomplished and how you did it. It can include (not limited to):
+1.	The commands you used to achieve the above tasks
+2.	A few pictures showing intermediary steps or results
+3.	Any configuration files and/or manifests
+

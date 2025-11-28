@@ -1,0 +1,162 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+$common = <<SCRIPT
+echo '* Add hosts ...'
+echo '127.0.0.1       localhost' > /etc/hosts
+echo '' >> /etc/hosts
+echo 'ff02::1 ip6-allnodes' >> /etc/hosts
+echo 'ff02::2 ip6-allrouters' >> /etc/hosts
+echo '' >> /etc/hosts
+echo '192.168.99.100 nfs-server.k8s.lab nfs-server' >> /etc/hosts
+echo '192.168.99.101 node1.k8s.lab node1' >> /etc/hosts
+echo '192.168.99.102 node2.k8s.lab node2' >> /etc/hosts
+echo '192.168.99.103 node3.k8s.lab node3' >> /etc/hosts
+
+SCRIPT
+
+$nfssrv = <<SCRIPT
+echo '* Install NFS Server ...'
+apt-get update && apt-get install -y nfs-kernel-server
+
+echo '* Create the forlder to be exported ...'
+mkdir -p /data/nfs/k8sdata
+
+echo '* Adjust the permissions ...'
+chmod 777 /data/nfs/k8sdata
+
+echo '* Add the export ...'
+echo '/data/nfs/k8sdata *(rw)' | tee -a /etc/exports
+
+echo '* Apply the export ...'
+exportfs -rav
+
+SCRIPT
+
+$nfsclt = <<SCRIPT
+echo '* Install NFS Utils ...'
+apt-get update && apt-get install -y nfs-common
+
+SCRIPT
+
+$docker = <<SCRIPT
+echo '* Install required packages ...'
+apt-get update && apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+
+echo '* Download and install the Docker repository key ...'
+curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+
+echo '* Add the Docker repository ...'
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+echo '* Install the required container runtime packages ...'
+apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io
+
+echo '* Add vagrant user to docker group ...'
+usermod -aG docker vagrant
+
+SCRIPT
+
+$podnet = <<SCRIPT
+# Possible values are none, flannel, calico, and antrea
+PODNETWORK='flannel'
+
+if [ $PODNETWORK == 'flannel' ]; then
+  echo "* Installing Pod Network plugin (Flannel) ..."
+  wget -q https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml -O /tmp/kube-flannel.yaml
+  sed -i '/--kube-subnet-mgr/ a CHANGEME' /tmp/kube-flannel.yaml
+  sed -i "s/CHANGEME/        - --iface=$(ip a | grep 192.168.99.101 | tr -s ' ' | cut -d ' ' -f 8)/" /tmp/kube-flannel.yaml 
+  kubectl apply -f /tmp/kube-flannel.yaml
+elif [ $PODNETWORK == 'calico' ]; then 
+  echo "* Installing Pod Network plugin (Calico) ..."
+  kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.1/manifests/operator-crds.yaml
+  kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.1/manifests/tigera-operator.yaml
+  wget -q https://raw.githubusercontent.com/projectcalico/calico/v3.31.1/manifests/custom-resources.yaml -O /tmp/custom-resources.yaml
+  sed -i 's/192.168.0.0/10.244.0.0/g' /tmp/custom-resources.yaml
+  kubectl create -f /tmp/custom-resources.yaml
+elif [ $PODNETWORK == 'antrea' ]; then 
+  echo "* Installing Pod Network plugin (Antrea) ..."
+  kubectl apply -f https://raw.githubusercontent.com/antrea-io/antrea/main/build/yamls/antrea.yml
+else
+  echo "* WARNING: No Pod Network has been configured."
+fi
+
+SCRIPT
+
+$k8scp = <<SCRIPT 
+echo "* Initialize Kubernetes cluster ..."
+kubeadm init --kubernetes-version=$(kubeadm version --output=short) --apiserver-advertise-address=192.168.99.101 --pod-network-cidr 10.244.0.0/16 --token abcdef.0123456789abcdef
+
+echo "* Save the hash to a file ..."
+openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //' > /vagrant/hash.txt
+
+echo "* Copy configuration for root ..."
+mkdir -p /root/.kube
+cp -i /etc/kubernetes/admin.conf /root/.kube/config
+chown -R root:root /root/.kube
+
+echo "* Copy configuration for vagrant ..."
+mkdir -p /home/vagrant/.kube
+cp -i /etc/kubernetes/admin.conf /home/vagrant/.kube/config
+chown -R vagrant:vagrant /home/vagrant/.kube
+
+SCRIPT
+
+$k8swk = <<SCRIPT
+echo "* Join the worker node ..."
+kubeadm join 192.168.99.101:6443 --token abcdef.0123456789abcdef --discovery-token-ca-cert-hash sha256:`cat /vagrant/hash.txt`
+
+SCRIPT
+
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "shekeriev/kubernetes-on-debian"
+  config.vm.box_version = "1.33.3"
+  
+  config.vm.define "docker" do |docker|
+    docker.vm.box = "shekeriev/debian-13"
+    docker.vm.box_version = "13.2.20251118"
+    docker.vm.hostname = "docker.k8s.lab"
+    docker.vm.network "private_network", ip: "192.168.99.99"
+    docker.vm.synced_folder "vagrant/", "/vagrant"
+    docker.vm.provision "shell", inline: $docker
+  end
+  
+  config.vm.define "nfsserver" do |nfsserver|
+    nfsserver.vm.box = "shekeriev/debian-13"
+    nfsserver.vm.box_version = "13.2.20251118"
+    nfsserver.vm.hostname = "nfs-server.k8s.lab"
+    nfsserver.vm.network "private_network", ip: "192.168.99.100"
+    nfsserver.vm.synced_folder "vagrant/", "/vagrant"
+    nfsserver.vm.provision "shell", inline: $common
+    nfsserver.vm.provision "shell", inline: $nfssrv
+  end
+
+  config.vm.define "node1" do |node1|
+    node1.vm.hostname = "node1.k8s.lab"
+    node1.vm.network "private_network", ip: "192.168.99.101"
+    node1.vm.synced_folder "vagrant/", "/vagrant"
+    node1.vm.provision "shell", inline: $common
+    node1.vm.provision "shell", inline: $nfsclt
+    node1.vm.provision "shell", inline: $k8scp
+    node1.vm.provision "shell", inline: $podnet
+  end
+
+  config.vm.define "node2" do |node2|
+    node2.vm.hostname = "node2.k8s.lab"
+    node2.vm.network "private_network", ip: "192.168.99.102"
+    node2.vm.synced_folder "vagrant/", "/vagrant"
+    node2.vm.provision "shell", inline: $common
+    node2.vm.provision "shell", inline: $nfsclt
+    node2.vm.provision "shell", inline: $k8swk
+  end
+
+  config.vm.define "node3" do |node3|
+    node3.vm.hostname = "node3.k8s.lab"
+    node3.vm.network "private_network", ip: "192.168.99.103"
+    node3.vm.synced_folder "vagrant/", "/vagrant"
+    node3.vm.provision "shell", inline: $common
+    node3.vm.provision "shell", inline: $nfsclt
+    node3.vm.provision "shell", inline: $k8swk
+  end
+end
