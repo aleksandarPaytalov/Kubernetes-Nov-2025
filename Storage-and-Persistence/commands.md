@@ -47,13 +47,17 @@ note: first we need to navigate to the folder where out manifest file is created
 - kubectl apply -f pv-be-1.yaml
 - kubectl apply -f pv-be-2.yaml
 - kubectl apply -f pv-be-3.yaml
+
+- kubectl apply -f service-facts.yaml
 - kubectl apply -f svc-be.yaml
+- kubectl apply -f svc-fe.yaml
 - kubectl apply -f statefulset-be.yaml
 - kubectl apply -f deployment-fe.yaml
-- kubectl apply -f svc-fe.yaml
+
 
 verificalition commands (optinal)
-- kubectl get pods, svc
+- kubectl get pods
+- kubectl get svc
 - kubectl get pvc -o wide
 - kubectl get nodes -o wide
 - http://192.168.99.101:30000
