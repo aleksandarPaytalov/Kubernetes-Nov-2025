@@ -1,0 +1,4 @@
+replicasCount: 3
+nodePort: 31000
+message: <h1>Hello from NginX Homework :)</h1>
+

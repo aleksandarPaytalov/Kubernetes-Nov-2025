@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namePrefix: blue-
+labels:
+- includeSelectors: true
+  pairs:
+    variant: test
+resources:
+- ../../base
+patches:
+- path: custom-rs.yaml
+- path: custom-np.yaml
+- path: custom-env.yaml
+images:
+- name: shekeriev/k8s-environ:latest
+  newName: shekeriev/k8s-environ
+  newTag: blue

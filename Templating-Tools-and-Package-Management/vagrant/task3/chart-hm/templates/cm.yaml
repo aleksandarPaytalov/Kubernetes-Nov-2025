@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-cm
+data:
+  index.html: |
+    {{ .Values.message }}
+    <img src="https://cdn-ildkchp.nitrocdn.com/JCnfCWRFJXTAeIZYjvRJTkqfajisMszu/assets/images/optimized/rev-c1692a1/platform9.com/media/Calico-Networking-For-Kubernetes.png" alt="My Image">
+
